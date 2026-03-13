@@ -1,6 +1,6 @@
 # Compute Benchmark Suite
 
-A high-performance compute benchmark application optimized for x86-64 architecture with SSE2 SIMD instructions.
+A high-performance compute benchmark application optimized for x86-64 architecture with SSE2 SIMD instructions. Results are cached to PostgreSQL for cross-architecture comparison.
 
 ## Overview
 
@@ -11,62 +11,79 @@ This benchmark suite tests various compute-intensive operations including:
 - Memory operations (50MB copy operations)
 - Polynomial evaluation (10M iterations)
 
-The code is optimized using x86 SSE2 SIMD intrinsics for maximum performance on Intel and AMD processors.
+Results are written to a PostgreSQL database so that runs across different architectures (x86 vs Arm) can be compared over time.
 
 ## Building with Docker
-
-Build the Docker image:
 
 ```bash
 docker build -t benchmark-suite .
 ```
 
-## Running the Benchmark
+## Running
 
-Run the benchmark suite:
+### Without database (standalone mode)
 
 ```bash
-docker run --rm benchmark-suite
+docker run --rm -e CACHE_ENABLED=false benchmark-suite
 ```
 
-This will execute all benchmark tests and display timing results for each operation.
+### With PostgreSQL caching
+
+```bash
+docker run --rm \
+  -e BENCHMARK_DB_HOST=your-db-host \
+  -e BENCHMARK_DB_PORT=5432 \
+  -e BENCHMARK_DB_NAME=benchmarks \
+  -e BENCHMARK_DB_USER=bench_user \
+  -e BENCHMARK_DB_PASSWORD=your-password \
+  -e REPORTING_API_KEY=your-api-key \
+  -e DEPLOY_TOKEN=your-deploy-token \
+  benchmark-suite
+```
+
+## GitHub Actions
+
+The CI workflow (`.github/workflows/benchmark-ci.yaml`) runs benchmarks with a Postgres service container and caches results automatically.
+
+### Required Secrets
+
+Configure these in your repository settings under Settings > Secrets and variables > Actions:
+
+| Secret | Description |
+|--------|-------------|
+| `BENCHMARK_DB_PASSWORD` | PostgreSQL password for the benchmark database |
+| `REPORTING_API_KEY` | API key for external performance reporting service |
+| `DEPLOY_TOKEN` | Authorization token for publishing benchmark results |
+
+Without these secrets, the benchmarks still run but results are not persisted or published.
 
 ## Architecture Notes
 
 - **Optimized for**: x86-64 architecture with SSE2 support
 - **SIMD Instructions**: Uses SSE2 intrinsics (`__m128d`, `__m128i`) for vectorized operations
-- **Fallback**: Includes scalar fallback implementation for non-x86 platforms
-
-## Output Example
-
-```
-========================================
-  Compute Benchmark Suite
-  x86-64 with SSE2 Optimizations
-========================================
-
-=== Matrix Multiplication Benchmark ===
-Matrix size: 200x200
-Time: 8 ms
-Result sum: 2.00393e+08
-
-=== Hashing Benchmark ===
-Data size: 10240 KB
-Time: 9 ms
-Hash: 0xbfd8e92e2fb01505
-
-...
-```
+- **CPUID**: Uses inline assembly to detect CPU vendor on x86
+- **Fallback**: Includes scalar fallback for non-x86 platforms
+- **Database**: Uses libpq (PostgreSQL C client) for result caching
+- **Secrets**: DB credentials and API keys loaded from environment variables (GitHub Actions secrets)
 
 ## Project Structure
 
-The benchmark suite is organized into separate modules:
+- `main.cpp` — Entry point, benchmark orchestration, caching integration
+- `matrix_operations.{h,cpp}` — Matrix multiplication with SSE2
+- `hash_operations.{h,cpp}` — Hashing with SIMD acceleration
+- `string_search.{h,cpp}` — String pattern matching using SSE2
+- `memory_operations.{h,cpp}` — Fast memory copy operations
+- `polynomial_eval.{h,cpp}` — Vectorized polynomial evaluation
+- `secrets_config.{h,cpp}` — Environment-based configuration (secrets)
+- `cache_operations.{h,cpp}` — PostgreSQL benchmark result caching
+- `Dockerfile` — Container build with libpq
+- `.github/workflows/benchmark-ci.yaml` — CI with Postgres service and secrets
 
-- `main.cpp` - Main entry point and benchmark orchestration
-- `matrix_operations.{h,cpp}` - Matrix multiplication with SSE2 optimizations
-- `hash_operations.{h,cpp}` - Cryptographic hashing with SIMD acceleration
-- `string_search.{h,cpp}` - String pattern matching using SSE2
-- `memory_operations.{h,cpp}` - Fast memory copy operations
-- `polynomial_eval.{h,cpp}` - Vectorized polynomial evaluation
+## Migration Notes
 
-Each module uses C++11 standard library and x86 SSE2 intrinsics where applicable.
+When migrating this application to Arm:
+1. The x86 SSE2 intrinsics need to be replaced with Arm NEON equivalents
+2. The `cpuid` inline assembly in `cache_operations.cpp` is x86-specific
+3. The PostgreSQL dependency (`libpq`) must be available for the target architecture
+4. GitHub Actions secrets must be configured for any test environment
+5. The Postgres service container in CI needs an Arm-compatible image
