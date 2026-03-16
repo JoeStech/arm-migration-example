@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:22.04 (no change needed — ubuntu:22.04 is a multi-arch image supporting linux/arm64). Ensure the build is invoked with the correct --platform flag: docker buildx build --platform linux/arm64 .
 
 # Install build dependencies including libpq for PostgreSQL connectivity
 RUN apt-get update && apt-get install -y \
