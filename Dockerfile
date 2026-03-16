@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:22.04  (no change required)
 
 # Install build dependencies including libpq for PostgreSQL connectivity
 RUN apt-get update && apt-get install -y \
